@@ -1,76 +1,243 @@
 import socket
 import threading
+import os
 
-
-# local host
 host = '127.0.0.1'
-# random port number
-port = 55555
+port_TCP = 1395
+port_UDP = port_TCP + 1
 
-# create socket object with ipv4 and tcp protocol
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.bind((host, port))
-# listen for incoming connections
+server.bind((host, port_TCP))
 server.listen()
+
+# -------------------------------------------------------------------------------
+
+# UDP socket for file transfer
+
+buffer = 1024 * 5
+message = "%s***%s***%d"
+
+
+# server_UDP = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+# server_UDP.bind((host, port_UDP))
+
+
+# packet count
+
+def get_packet_size(file, buffer):
+    bytes = os.stat(file).st_size
+    packets = bytes//buffer
+
+    if bytes % buffer != 0:
+        packets += 1
+
+    return packets
+
+
+def send_packet(data):
+    server_UDP.sendto(data, (host, port_UDP))
+
+    while True:
+        try:
+            data, messenger = server_UDP.recvfrom(buffer)
+            data = data.decode()
+            if data == "CONFIRMED":
+                break
+        except:
+            continue
+
+
+def send_file(file):
+    data = None
+
+    while not data == "READY":
+        ready_message = message % ("IS_READY", "_", 0)
+        server_UDP.sendto(ready_message.encode(), (host, port_UDP))
+
+        try:
+            data, messenger = server_UDP.recvfrom(buffer)
+            data = data.decode()
+        except:
+            pass
+
+    packet_count = get_packet_size(file, buffer)
+
+    init_message = message % (
+        "INITIATE", "Duplicate_" + file, packet_count)
+    server_UDP.sendto(init_message.encode(), (host, port_UDP))
+
+    f = open(file, "rb")
+
+    if server_UDP is not None:
+        print("Sending %s with %d packets" % (file, packet_count))
+        for i in range(0, packet_count):
+            send_packet(f.read(buffer))
+
+    print("Sent all %d packets\n" % (packet_count))
+    f.close()
+# ------------------------------------------------------------------------------
+
+
+print("Server Started...")
 
 clients = []
 nicknames = []
-
-# broadcast message to all clients
+unhiddenClientsNick = []
+addresses = []
 
 
 def broadcast(message):
     for client in clients:
         client.send(message)
 
-# handle client connections
+
+def list_clients():
+    if nicknames:
+        return "Connected clients: " + ", ".join(nicknames)
+    else:
+        return "No clients connected."
+
+
+def listOnlineClients():
+    if unhiddenClientsNick:
+        return "Connected clients: " + ", ".join(unhiddenClientsNick)
+    else:
+        return "No clients connected."
 
 
 def handle(client):
     while True:
         try:
-            # try and recieve a msg and then broadcast message to all clients
-            message = client.recv(1024)
-            broadcast(message)
+            message = client.recv(1024).decode('ascii')
+
+            if message == '/end':
+                client.send("Connection closed.".encode('ascii'))
+                index = clients.index(client)
+                clients.remove(client)
+                nick = nicknames[index]
+                if nick in unhiddenClientsNick:
+                    unhiddenClientsNick.remove(nick)
+                    broadcast("{} left the server.".format(
+                        nick).encode('ascii'))
+                nicknames.remove(nick)
+                client.close()
+                break
+
+            elif message == '/list':
+                client.send(listOnlineClients().encode('ascii'))
+
+            elif message.startswith("/whisper"):
+                parts = message.split(maxsplit=3)
+
+                sender = parts[1]
+                recip = parts[2]
+                msgToSend = parts[3]
+
+                privateMessage(sender, recip, msgToSend)
+
+            elif message == '/hide':
+                for client, nickname in zip(clients, nicknames):
+                    if nickname in unhiddenClientsNick:
+                        unhiddenClientsNick.remove(nickname)
+                        client.send(
+                            "Your connection is hidden from other users.".encode('ascii'))
+                        broadcast("{} left the server.".format(
+                            nickname).encode('ascii'))
+                    else:
+                        client.send(
+                            "Your connection is already hidden from other users.".encode('ascii'))
+
+            elif message == '/unhide':
+                for client, nickname in zip(clients, nicknames):
+                    if nickname in unhiddenClientsNick:
+                        client.send(
+                            "Your connection is already available to other users.".encode('ascii'))
+                    else:
+                        client.send(
+                            "Your connection is now available to other users.".encode('ascii'))
+                        unhiddenClientsNick.append(nickname)
+                        broadcast("{} joined the server.".format(
+                            nickname).encode('ascii'))
+
+            elif message.startswith('/getAddress'):
+
+                parts = message.split(maxsplit=3)
+
+                clientNickname = parts[1]
+                # client.send(listOnlineClients().encode('ascii'))
+
+                # find client by nickname
+                for address, nickname in zip(addresses, nicknames):
+                    if nickname == clientNickname:
+                        # convert address to string
+                        str = "{}:{}".format(address[0], address[1])
+                        client.send(str.encode('ascii'))
+                        # print(str)
+                        break
+
+            elif message == '/file':
+                input_file = input("Enter file name: ")
+                recipient = input("Enter recipient: ")
+                recipClient = findRecipient(recipient)
+                if recipClient:
+                    send_file(input_file)
+                else:
+                    print("Unable to find recipient")
+
+            else:
+                broadcast(message.encode('ascii'))
         except:
-            # if doesnt work remove client from list and terminate connection
-            index = clients.index(client)  # fetch index of client
+            index = clients.index(client)
             clients.remove(client)
-            client.close()  # close connection
-            nickname = nicknames[index]  # fetch nickname of client
+            client.close()
+            nickname = nicknames[index]
+            broadcast('{} left the server.'.format(nickname).encode('ascii'))
             nicknames.remove(nickname)
-            broadcast(f'{nickname} left the chat!'.encode('ascii'))
             break
 
-# recieve connections from clients
+
+def privateMessage(sender, recipient, message):
+    recipClient = findRecipient(recipient)
+    if recipClient:
+        formattedMsg = "{} -> {}: {}".format(sender, recipClient, message)
+        recipClient.send(formattedMsg.encode('ascii'))
+    else:
+        sender.send("Unable to find recipient :/".encode('ascii'))
+
+
+def findRecipient(recipNick):  # find recipient to priv msg
+    for client, nickname in zip(clients, nicknames):
+        if nickname == recipNick:
+            return client
+    return None
+
+
+def findAddress(clientNickname):
+    for address, nickname in zip(addresses, nicknames):
+        if nickname == clientNickname:
+            return address
+    return None
 
 
 def receive():
     while True:
-        # accept incoming connections and store client and address
         client, address = server.accept()
-        # print address of client on server console
-        print(f"Connected with {str(address)}")
+        print("Connected with {}".format(str(address)))
 
-        # send NICK to client to get nickname
         client.send('NICK'.encode('ascii'))
-        # recieve nickname from client and decode it to ascii
         nickname = client.recv(1024).decode('ascii')
-        # add to lists
         nicknames.append(nickname)
         clients.append(client)
+        addresses.append(address)
+        unhiddenClientsNick.append(nickname)
 
-        # print nickname of client on server console
-        print(f"Nickname of the client is {nickname}!")
-        # broadcast message to all clients that a new client has joined the chat
-        broadcast(f"{nickname} joined the chat!".encode('ascii'))
-        # send message to client that they are connected to the server
-        client.send('Connected to the server!'.encode('ascii'))
+        print("Nickname is {}".format(nickname))
+        broadcast("{} joined the server.".format(nickname).encode('ascii'))
+        client.send(
+            'Connected to server!\nType /help for list of commands'.encode('ascii'))
 
-        # create a new thread for each client
         thread = threading.Thread(target=handle, args=(client,))
-        thread.start()  # lol PCP go brrr
+        thread.start()
 
 
-print("Server is listening...")
 receive()
