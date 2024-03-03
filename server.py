@@ -3,7 +3,7 @@ import threading
 import os
 
 host = '127.0.0.1'
-port_TCP = 1400
+port_TCP = 1403
 port_UDP = port_TCP + 1
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -106,6 +106,18 @@ def listOnlineClients():
         return "No clients connected."
 
 
+def listAllOnlineClients():
+    if unhiddenClientsNick:
+        s = ""
+        for i in range(len(unhiddenClientsNick)):
+
+            s += unhiddenClientsNick[i]+" " + \
+                str(addresses[i])+" "+str(udp_ports[i])+"\n"
+        return "Connected clients: " + s
+    else:
+        return "No clients connected."
+
+
 def handle(client):
     while True:
         try:
@@ -126,6 +138,9 @@ def handle(client):
 
             elif message == '/list':
                 client.send(listOnlineClients().encode('ascii'))
+
+            elif message == '/listAll':
+                client.send(listAllOnlineClients().encode('ascii'))
 
             elif message.startswith("/whisper"):
                 parts = message.split(maxsplit=3)

@@ -166,6 +166,7 @@ def write():
             commands = {
                 "/all": broadcastToAll,  # broadcast message
                 "/list": listOnlineClients,  # request list of online clients,
+                "/listAll": listAllOnlineClients,  # request list of online clients,
                 "/whisper": privateMessage,  # private message
                 "/hide": hideConnection,  # hide presence,
                 "/unhide": unhideConnection,
@@ -174,6 +175,8 @@ def write():
                 "/sendFile": sendFile,
                 "/UDPport": lambda: print(UDP_PORT),
                 "/help": printCommands,
+
+
             }
 
             if command in commands:
@@ -193,6 +196,10 @@ def broadcastToAll(message):
 
 def listOnlineClients():
     client.send("/list".encode('ascii'))
+
+
+def listAllOnlineClients():
+    client.send("/listAll".encode('ascii'))
 
 
 def privateMessage(recip):
