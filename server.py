@@ -3,7 +3,7 @@ import threading
 import os
 
 host = '127.0.0.1'
-port_TCP = 1395
+port_TCP = 1396
 port_UDP = port_TCP + 1
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

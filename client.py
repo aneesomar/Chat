@@ -1,7 +1,8 @@
 import socket
 import threading
 from sys import argv, exit
-from sendFile import send_
+from sendFile import send_file
+import random
 
 
 def get_args(recurred=False):
@@ -60,54 +61,58 @@ stop_threads = False
 # ------------------------------------------------------------------------------------------------
 
 buffer = 1024 * 5
-# server_UDP = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-# server_UDP.bind((ipAddress, portNum-1))
+
 
 inStartMode = True  # flag to signal the server to start receiving a file
 packets = []  # list to store all the received packets
 write_file = None  # file to write the received data to
 packetcnt = 0  # number of packets to expect
+UDP_PORT = random.randint(1024, 49151)
+UDP_ADDR = "127.0.0.1"
 
-# if server_UDP is not None:
-#     while True:
-#         try:
-#             data, messenger = server_UDP.recvfrom(buffer)
-#         except:
-#             continue
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-#         if inStartMode:
-#             data = data.decode()
+while True:
+    try:
+        sock.bind((UDP_ADDR, UDP_PORT))
+        break
+    except OSError:
+        UDP_PORT = random.randint(1024, 49151)
 
-#             message, filename, packet_count = data.split("***")
-#             packet_count = int(packet_count)
 
-#             if message == "INITIATE":
-#                 print("Receiving %s with %d packets" %
-#                       (filename, packet_count))
-#                 write_file = open(filename, "wb")
-#                 inStartMode = False
-#                 packets = []
+def receive_file():
+    global inStartMode, packets, write_file, packetcnt
+    while True:
+        try:
+            data, messenger = sock.recvfrom(buffer)
+        except:
+            continue
 
-#             elif message == "IS_READY":
-#                 server_UDP.sendto("READY".encode(), messenger)
+        if inStartMode:
+            data = data.decode()
+            message, filename, packetcnt = data.split("***")
+            packetcnt = int(packetcnt)
 
-#         else:
-#             packets.append(data)
-#             server_UDP.sendto("CONFIRMED".encode(), messenger)
+            if message == "INITIATE":
+                print("Receiving %s with %d packets" % (filename, packetcnt))
+                write_file = open(filename, "wb")
+                inStartMode = False
+                packets = []
+            elif message == "IS_READY":
+                sock.sendto("READY".encode(), messenger)
+        else:
+            packets.append(data)
+            sock.sendto("CONFRIMED".encode(), messenger)
+            if len(packets) == packetcnt:
+                print("Writing %s with %d packets\n" % (filename, packetcnt))
+                for packet in packets:
+                    write_file.write(packet)
+                write_file.close()
+                inStartMode = True
+                write_file = None
+                packetcnt = 0
+                packets = []
 
-#             if len(packets) == packet_count:
-#                 print("Writing %s with %d packets\n" %
-#                       (filename, packet_count))
-
-#                 for packet in packets:
-#                     write_file.write(packet)
-
-#                 write_file.close()
-
-#                 inStartMode = True
-#                 write_file = None
-#                 packet_count = 0
-#                 written_packets_count = 0
 
 # ------------------------------------------------------------------------------------------------
 
@@ -127,12 +132,12 @@ def receive():
 def sendFileThread(IP, port, fileName):
     print("Sending file to IP:", IP, "on port:", port)
     print("File name:", fileName)
-    send_file("127.0.0.1", 4489, "test.zip")
+    send_file(IP, port, fileName)
 
     # send_file(IP, port, fileName)
 
 
-rules = "/all to broadcast, \n/whisper [nickname] for private, \n/list to view online clients, \n/hide to hide presence, \n/unhide to unhide connection, /addr, \n/file, \n/end to leave server \n"
+rules = "/all to broadcast, \n/whisper [nickname] for private, \n/list to view online clients, \n/hide to hide presence, \n/unhide to unhide connection, /addr, \n/sendFile [ip] [port] [filename], \n/end to leave server \n"
 
 
 def write():
@@ -161,6 +166,7 @@ def write():
                 "/end": exitServer,  # leave server
                 "/getAddress": getAddress,  # get address of recipient
                 "/sendFile": sendFile,
+                "/UDPport": lambda: print(UDP_PORT),
                 "/help": printCommands,
             }
 
@@ -227,6 +233,9 @@ def main():
 
     write_thread = threading.Thread(target=write, daemon=True)
     write_thread.start()
+
+    receive_file_thread = threading.Thread(target=receive_file, daemon=True)
+    receive_file_thread.start()
 
     while not stop_threads:
         pass
