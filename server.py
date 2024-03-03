@@ -18,8 +18,8 @@ buffer = 1024 * 5
 message = "%s***%s***%d"
 
 
-# server_UDP = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-# server_UDP.bind((host, port_UDP))
+server_UDP = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+server_UDP.bind((host, port_UDP))
 
 
 # packet count
@@ -135,32 +135,33 @@ def handle(client):
 
                 privateMessage(sender, recip, msgToSend)
 
-            elif message == '/hide':
+            elif message.startswith('/hide'):
+                nickToHide = message.split()[1]
                 for client, nickname in zip(clients, nicknames):
-                    if nickname in unhiddenClientsNick:
+                    if nickname == nickToHide and nickname in unhiddenClientsNick:
                         unhiddenClientsNick.remove(nickname)
                         client.send(
                             "Your connection is hidden from other users.".encode('ascii'))
                         broadcast("{} left the server.".format(
                             nickname).encode('ascii'))
-                    else:
+                    elif nickname == nickToHide and nickname not in unhiddenClientsNick:
                         client.send(
                             "Your connection is already hidden from other users.".encode('ascii'))
 
-            elif message == '/unhide':
+            elif message.startswith('/unhide'):
+                nickToUnhide = message.split()[1]
                 for client, nickname in zip(clients, nicknames):
-                    if nickname in unhiddenClientsNick:
+                    if nickname == nickToUnhide and nickname in unhiddenClientsNick:
                         client.send(
                             "Your connection is already available to other users.".encode('ascii'))
-                    else:
+                    elif nickname == nickToUnhide and nickname not in unhiddenClientsNick:
                         client.send(
                             "Your connection is now available to other users.".encode('ascii'))
                         unhiddenClientsNick.append(nickname)
                         broadcast("{} joined the server.".format(
                             nickname).encode('ascii'))
 
-            elif message.startswith('/getAddress'):
-
+            elif message.startswith('/addr'):
                 parts = message.split(maxsplit=3)
 
                 clientNickname = parts[1]
@@ -199,7 +200,7 @@ def handle(client):
 def privateMessage(sender, recipient, message):
     recipClient = findRecipient(recipient)
     if recipClient:
-        formattedMsg = "{} -> {}: {}".format(sender, recipClient, message)
+        formattedMsg = "{} -> {}: {}".format(sender, recipient, message)
         recipClient.send(formattedMsg.encode('ascii'))
     else:
         sender.send("Unable to find recipient :/".encode('ascii'))
@@ -224,8 +225,17 @@ def receive():
         client, address = server.accept()
         print("Connected with {}".format(str(address)))
 
-        client.send('NICK'.encode('ascii'))
-        nickname = client.recv(1024).decode('ascii')
+        nickname = client.recv(1024).decode('ascii').strip()
+
+        while ' ' in nickname or nickname in nicknames:
+            if ' ' in nickname:
+                client.send("NICK_CONTAIN_WHITESPACE".encode('ascii'))
+            else:
+                client.send("NICK_NOT_UNIQUE".encode('ascii'))
+            nickname = client.recv(1024).decode('ascii').strip()
+
+        client.send("NICK_ACCEPTED".encode('ascii'))
+
         nicknames.append(nickname)
         clients.append(client)
         addresses.append(address)

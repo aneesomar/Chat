@@ -1,7 +1,7 @@
 import socket
 import threading
 from sys import argv, exit
-from sendFile import send_file
+from sendFile import send_
 
 
 def get_args(recurred=False):
@@ -32,7 +32,27 @@ try:
 except ConnectionRefusedError:
     print("Connection refused. Make sure the server is running and that the port number is correct.")
 
-nickname = input("Choose your nickname: ")
+
+def choose_nickname():
+    while True:
+        nickname = input("Choose your nickname: ")
+        nickname = nickname.strip()
+        if ' ' in nickname:
+            print("Nickname cannot contain whitespace.")
+            continue
+        client.send(nickname.encode('ascii'))
+        response = client.recv(1024).decode('ascii')
+        print("server response: ", response)
+        if response == 'NICK_ACCEPTED':
+            print("nick accepted")
+            return nickname
+        elif response == 'NICK_NOT_UNIQUE':
+            print("Nickname must be unique.")
+        elif response == "NICK_CONTAIN_WHITESPACE":
+            print("Nickname cannot contain whitespace.")
+
+
+nickname = choose_nickname()
 
 # flag to signal threads to stop
 stop_threads = False
@@ -97,10 +117,7 @@ def receive():
     while not stop_threads:
         try:
             message = client.recv(1024).decode('ascii')
-            if message == 'NICK':
-                client.send(nickname.encode('ascii'))
-            else:
-                print(message)
+            print(message)
         except:
             print("An error occured!")
             client.close()
@@ -115,13 +132,14 @@ def sendFileThread(IP, port, fileName):
     # send_file(IP, port, fileName)
 
 
+rules = "/all to broadcast, \n/whisper [nickname] for private, \n/list to view online clients, \n/hide to hide presence, \n/unhide to unhide connection, /addr, \n/file, \n/end to leave server \n"
+
+
 def write():
     global stop_threads
     while True:
         if not stop_threads:
-            clientInput = input("/all to broadcast, \n/whisper [nickname] for private, \n" +
-                                "/list to view online clients, \n/hide to hide presence, \n/unhide to unhide connection, \n" +
-                                "/end to leave server: \n")
+            clientInput = input("")
 
             if stop_threads:
                 break
@@ -142,13 +160,18 @@ def write():
                 "/unhide": unhideConnection,
                 "/end": exitServer,  # leave server
                 "/getAddress": getAddress,  # get address of recipient
-                "/sendFile": sendFile
+                "/sendFile": sendFile,
+                "/help": printCommands,
             }
 
             if command in commands:
                 commands[command](*args)
             else:
                 print("invalid input!")
+
+
+def printCommands():
+    print(rules)
 
 
 def broadcastToAll(message):
@@ -169,11 +192,11 @@ def privateMessage(recip):
 
 
 def hideConnection():
-    client.send("/hide".encode('ascii'))
+    client.send("/hide {}".format(nickname).encode('ascii'))
 
 
 def unhideConnection():
-    client.send("/unhide".encode('ascii'))
+    client.send("/unhide {}".format(nickname).encode('ascii'))
 
 
 def exitServer():
