@@ -3,7 +3,7 @@ import threading
 import os
 
 host = '127.0.0.1'
-port_TCP = 1403
+port_TCP = 1409
 port_UDP = port_TCP + 1
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -112,10 +112,18 @@ def listAllOnlineClients():
         for i in range(len(unhiddenClientsNick)):
 
             s += unhiddenClientsNick[i]+" " + \
-                str(addresses[i])+" "+str(udp_ports[i])+"\n"
+                str(addresses[i][0])+" "+str(addresses[i][1]) + \
+                " "+str(udp_ports[i])+"\n"
         return "Connected clients: " + s
     else:
         return "No clients connected."
+
+
+def getAddress(nickname):
+    for address, udp_port, nick in zip(addresses, udp_ports, nicknames):
+        if nick == nickname:
+            return "Address: " + str(address[0])+" " + str(address[1]) + " " + str(udp_port)
+    return "Client not found"
 
 
 def handle(client):
@@ -141,6 +149,13 @@ def handle(client):
 
             elif message == '/listAll':
                 client.send(listAllOnlineClients().encode('ascii'))
+
+            elif message.startswith('/getAddress'):
+                parts = message.split(maxsplit=1)
+                nickname = parts[1]
+                print("nickname: "+nickname)
+                message = getAddress(nickname)
+                client.send(message.encode('ascii'))
 
             elif message.startswith("/whisper"):
                 parts = message.split(maxsplit=3)

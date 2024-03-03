@@ -80,7 +80,7 @@ while True:
         UDP_PORT = random.randint(1024, 49151)
 
 print("send UDP port", UDP_PORT)
-a = input("press enter to continue")
+
 
 formattedMessage = '{}'.format(UDP_PORT)
 client.send(formattedMessage.encode('ascii'))
@@ -228,6 +228,7 @@ def exitServer():
 
 def getAddress(nickname):
     formattedMessage = '/getAddress {}'.format(nickname)
+    print("formattedMessage:", formattedMessage)
     client.send(formattedMessage.encode('ascii'))
 
 
