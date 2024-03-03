@@ -3,7 +3,7 @@ import threading
 import os
 
 host = '127.0.0.1'
-port_TCP = 1396
+port_TCP = 1400
 port_UDP = port_TCP + 1
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -84,6 +84,7 @@ clients = []
 nicknames = []
 unhiddenClientsNick = []
 addresses = []
+udp_ports = []
 
 
 def broadcast(message):
@@ -185,6 +186,13 @@ def handle(client):
                 else:
                     print("Unable to find recipient")
 
+            elif message.startswith('/UDPport'):
+                nickname = message.split()[1]
+                print("UDP attach :", nickname)
+                for udp_ports, nick in zip(udp_ports, nicknames):
+                    if nick == nickname:
+                        client.send(str(port_UDP).encode('ascii'))
+
             else:
                 broadcast(message.encode('ascii'))
         except:
@@ -235,6 +243,9 @@ def receive():
             nickname = client.recv(1024).decode('ascii').strip()
 
         client.send("NICK_ACCEPTED".encode('ascii'))
+
+        udp_port = client.recv(1024).decode('ascii').strip()
+        udp_ports.append(int(udp_port))
 
         nicknames.append(nickname)
         clients.append(client)

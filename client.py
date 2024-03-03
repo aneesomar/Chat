@@ -79,6 +79,12 @@ while True:
     except OSError:
         UDP_PORT = random.randint(1024, 49151)
 
+print("send UDP port", UDP_PORT)
+a = input("press enter to continue")
+
+formattedMessage = '{}'.format(UDP_PORT)
+client.send(formattedMessage.encode('ascii'))
+
 
 def receive_file():
     global inStartMode, packets, write_file, packetcnt
@@ -218,8 +224,8 @@ def getAddress(nickname):
     client.send(formattedMessage.encode('ascii'))
 
 
-def sendFile(IP, port, fileName):
-    port = int(port)
+def sendFile(username, fileName):
+    client.send("/UDPport {}".format(username).encode('ascii'))
     # print("Sending file to IP:", IP, "on port:", port)
     receive_thread = threading.Thread(
         target=sendFileThread, daemon=True, args=(IP, port, fileName))
