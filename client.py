@@ -219,6 +219,7 @@ def getAddress(nickname):
 
 
 def sendFile(IP, port, fileName):
+    port = int(port)
     # print("Sending file to IP:", IP, "on port:", port)
     receive_thread = threading.Thread(
         target=sendFileThread, daemon=True, args=(IP, port, fileName))
